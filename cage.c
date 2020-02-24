@@ -159,7 +159,7 @@ usage(FILE *file, const char *cage)
 	fprintf(file,
 		"Usage: %s [OPTIONS] [--] APPLICATION\n"
 		"\n"
-		" -d\t Don't draw client side decorations, when possible\n"
+		" -d\t Do draw client side decorations, when possible (default=false)\n"
 		" -r\t Rotate the output 90 degrees clockwise, specify up to three times\n"
 #ifdef DEBUG
 		" -D\t Turn on damage tracking debugging\n"
@@ -366,8 +366,8 @@ main(int argc, char *argv[])
 		goto end;
 	}
 	wlr_server_decoration_manager_set_default_mode(
-		server_decoration_manager, server.xdg_decoration ? WLR_SERVER_DECORATION_MANAGER_MODE_SERVER
-								 : WLR_SERVER_DECORATION_MANAGER_MODE_CLIENT);
+		server_decoration_manager, server.xdg_decoration ? WLR_SERVER_DECORATION_MANAGER_MODE_CLIENT
+								 : WLR_SERVER_DECORATION_MANAGER_MODE_SERVER);
 
 	export_dmabuf_manager = wlr_export_dmabuf_manager_v1_create(server.wl_display);
 	if (!export_dmabuf_manager) {
