@@ -17,6 +17,9 @@
 #include "view.h"
 
 struct cg_server {
+
+	pid_t active_pid;
+
 	struct wl_display *wl_display;
 	struct wl_list views;
 

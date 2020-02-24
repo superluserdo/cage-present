@@ -4,13 +4,13 @@ project('cage', 'c',
   default_options: [
     'c_std=c11',
     'warning_level=3',
+		'werror=true',
   ],
 )
 
 add_project_arguments(
   [
     '-DWLR_USE_UNSTABLE',
-    '-Wall',
     '-Wundef',
     '-Wno-unused-parameter',
   ],
@@ -102,6 +102,7 @@ cage_sources = [
   'util.c',
   'view.c',
   'xdg_shell.c',
+  'present.c',
 ]
 
 cage_headers = [

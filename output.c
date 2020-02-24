@@ -375,9 +375,6 @@ output_destroy(struct cg_output *output)
 
 	free(output);
 
-	if (wl_list_empty(&server->outputs)) {
-		wl_display_terminate(server->wl_display);
-	}
 }
 
 static void

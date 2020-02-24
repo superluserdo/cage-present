@@ -5,11 +5,14 @@
  *
  * See the LICENSE file accompanying this file.
  */
+#define _POSIX_C_SOURCE 200809L
 
 #include "config.h"
 
 #include <linux/input-event-codes.h>
 #include <stdlib.h>
+#include <signal.h>
+#include <sys/wait.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
 #include <wlr/types/wlr_cursor.h>
@@ -32,6 +35,7 @@
 #if CAGE_HAS_XWAYLAND
 #include "xwayland.h"
 #endif
+#include "present.h"
 
 static void drag_icon_update_position(struct cg_drag_icon *drag_icon);
 
@@ -226,11 +230,20 @@ static bool
 handle_keybinding(struct cg_server *server, xkb_keysym_t sym)
 {
 	switch (sym) {
-#ifdef DEBUG
+	case XKB_KEY_Right:
+		fprintf(stderr, "Moving one to the right\n");
+		present_direction_keypress(server, 1);
+		break;
+	case XKB_KEY_Left:
+		fprintf(stderr, "Moving one to the left\n");
+		present_direction_keypress(server, -1);
+		break;
 	case XKB_KEY_Escape:
+		kill(server->active_pid, SIGHUP);
+		int status;
+		waitpid(server->active_pid, &status, 0);
 		wl_display_terminate(server->wl_display);
 		break;
-#endif
 	default:
 		return false;
 	}

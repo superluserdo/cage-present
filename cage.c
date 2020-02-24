@@ -6,7 +6,7 @@
  * See the LICENSE file accompanying this file.
  */
 
-#define _POSIX_C_SOURCE 200112L
+#define _POSIX_C_SOURCE 200809L
 
 #include "config.h"
 
@@ -49,24 +49,7 @@
 #if CAGE_HAS_XWAYLAND
 #include "xwayland.h"
 #endif
-
-static int
-sigchld_handler(int fd, uint32_t mask, void *data)
-{
-	struct wl_display *display = data;
-
-	/* Close Cage's read pipe. */
-	close(fd);
-
-	if (mask & WL_EVENT_HANGUP) {
-		wlr_log(WLR_DEBUG, "Child process closed normally");
-	} else if (mask & WL_EVENT_ERROR) {
-		wlr_log(WLR_DEBUG, "Connection closed by server");
-	}
-
-	wl_display_terminate(display);
-	return 0;
-}
+#include "present.h"
 
 static bool
 set_cloexec(int fd)
@@ -87,8 +70,8 @@ set_cloexec(int fd)
 	return true;
 }
 
-static bool
-spawn_primary_client(struct wl_display *display, char *argv[], pid_t *pid_out, struct wl_event_source **sigchld_source)
+bool
+spawn_client(struct wl_display *display, char *const argv[], pid_t *pid_out)
 {
 	int fd[2];
 	if (pipe(fd) != 0) {
@@ -111,6 +94,7 @@ spawn_primary_client(struct wl_display *display, char *argv[], pid_t *pid_out, s
 	}
 
 	/* Set this early so that if we fail, the client process will be cleaned up properly. */
+	pid_t pid_prev = *pid_out;
 	*pid_out = pid;
 
 	if (!set_cloexec(fd[0]) || !set_cloexec(fd[1])) {
@@ -120,26 +104,15 @@ spawn_primary_client(struct wl_display *display, char *argv[], pid_t *pid_out, s
 	/* Close write, we only need read in Cage. */
 	close(fd[1]);
 
-	struct wl_event_loop *event_loop = wl_display_get_event_loop(display);
-	uint32_t mask = WL_EVENT_HANGUP | WL_EVENT_ERROR;
-	*sigchld_source = wl_event_loop_add_fd(event_loop, fd[0], mask, sigchld_handler, display);
-
 	wlr_log(WLR_DEBUG, "Child process created with pid %d", pid);
-	return true;
-}
 
-static void
-cleanup_primary_client(pid_t pid)
-{
-	int status;
-
-	waitpid(pid, &status, 0);
-
-	if (WIFEXITED(status)) {
-		wlr_log(WLR_DEBUG, "Child exited normally with exit status %d", WEXITSTATUS(status));
-	} else if (WIFSIGNALED(status)) {
-		wlr_log(WLR_DEBUG, "Child was terminated by a signal (%d)", WTERMSIG(status));
+	if (pid_prev != 0) {
+		/* Terminate previous forked process */
+		fprintf(stderr, "Previous PID = %d\n", pid_prev);
+		kill(pid_prev, SIGHUP);
 	}
+
+	return true;
 }
 
 static bool
@@ -164,13 +137,16 @@ drop_permissions(void)
 static int
 handle_signal(int signal, void *data)
 {
-	struct wl_display *display = data;
+	struct cg_server *server = data;
+	struct wl_display *display = server->wl_display;
+	wlr_log(WLR_DEBUG, "Interrupt signal caught, exiting...");
+	wl_display_terminate(display);
+	wlr_idle_notify_activity(server->idle, server->seat->seat);
 
 	switch (signal) {
 	case SIGINT:
 		/* Fallthrough */
 	case SIGTERM:
-		wl_display_terminate(display);
 		return 0;
 	default:
 		return 0;
@@ -246,7 +222,6 @@ main(int argc, char *argv[])
 	struct wl_event_loop *event_loop = NULL;
 	struct wl_event_source *sigint_source = NULL;
 	struct wl_event_source *sigterm_source = NULL;
-	struct wl_event_source *sigchld_source = NULL;
 	struct wlr_backend *backend = NULL;
 	struct wlr_renderer *renderer = NULL;
 	struct wlr_compositor *compositor = NULL;
@@ -262,12 +237,19 @@ main(int argc, char *argv[])
 	struct wlr_xwayland *xwayland = NULL;
 	struct wlr_xcursor_manager *xcursor_manager = NULL;
 #endif
-	pid_t pid = 0;
 	int ret = 0;
 
 	if (!parse_args(&server, argc, argv)) {
 		return 1;
 	}
+	const char *filename = argv[optind];
+	FILE *cmds_file = fopen(filename, "r");
+	if (!cmds_file) {
+		fprintf(stderr, "Couldn't open file %s for reading\n", filename);
+		exit(1);
+	}
+	present_read_cmds(cmds_file);
+	fclose(cmds_file);
 
 #ifdef DEBUG
 	wlr_log_init(WLR_DEBUG, NULL);
@@ -288,9 +270,8 @@ main(int argc, char *argv[])
 	}
 
 	event_loop = wl_display_get_event_loop(server.wl_display);
-	sigint_source = wl_event_loop_add_signal(event_loop, SIGINT, handle_signal, &server.wl_display);
-	sigterm_source = wl_event_loop_add_signal(event_loop, SIGTERM, handle_signal, &server.wl_display);
-
+	sigint_source = wl_event_loop_add_signal(event_loop, SIGINT, handle_signal, &server);
+	sigterm_source = wl_event_loop_add_signal(event_loop, SIGTERM, handle_signal, &server);
 	backend = wlr_backend_autocreate(server.wl_display, NULL);
 	if (!backend) {
 		wlr_log(WLR_ERROR, "Unable to create the wlroots backend");
@@ -473,16 +454,14 @@ main(int argc, char *argv[])
 	wlr_xwayland_set_seat(xwayland, server.seat->seat);
 #endif
 
-	if (!spawn_primary_client(server.wl_display, argv + optind, &pid, &sigchld_source)) {
-		ret = 1;
-		goto end;
-	}
+	present_direction_keypress(&server, -1);
 
 	/* Place the cursor in the center of the output layout. */
 	struct wlr_box *layout_box = wlr_output_layout_get_box(server.output_layout, NULL);
 	wlr_cursor_warp(server.seat->cursor, NULL, layout_box->width / 2, layout_box->height / 2);
 
 	wl_display_run(server.wl_display);
+	wlr_log(WLR_DEBUG, "Server ended");
 
 #if CAGE_HAS_XWAYLAND
 	wlr_xwayland_destroy(xwayland);
@@ -491,13 +470,9 @@ main(int argc, char *argv[])
 	wl_display_destroy_clients(server.wl_display);
 
 end:
-	cleanup_primary_client(pid);
 
 	wl_event_source_remove(sigint_source);
 	wl_event_source_remove(sigterm_source);
-	if (sigchld_source) {
-		wl_event_source_remove(sigchld_source);
-	}
 	seat_destroy(server.seat);
 	/* This function is not null-safe, but we only ever get here
 	   with a proper wl_display. */
