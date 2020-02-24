@@ -159,13 +159,15 @@ usage(FILE *file, const char *cage)
 	fprintf(file,
 		"Usage: %s [OPTIONS] [--] APPLICATION\n"
 		"\n"
-		" -d\t Do draw client side decorations, when possible (default=false)\n"
-		" -r\t Rotate the output 90 degrees clockwise, specify up to three times\n"
+		" -d            Do draw client side decorations, when possible (default=false)\n"
+		" -r            Rotate the output 90 degrees clockwise, specify up to three times\n"
 #ifdef DEBUG
-		" -D\t Turn on damage tracking debugging\n"
+		" -D            Turn on damage tracking debugging\n"
 #endif
-		" -h\t Display this help message\n"
-		" -v\t Show the version number and exit\n"
+		" -h            Display this help message\n"
+		" -v            Show the version number and exit\n"
+		" -m <key>      Specify a modifier key (default=alt)\n"
+		"    values:    alt, ctrl, shift, mod2, mod3, mod5, logo\n"
 		"\n"
 		" Use -- when you want to pass arguments to APPLICATION\n",
 		cage);
@@ -176,9 +178,9 @@ parse_args(struct cg_server *server, int argc, char *argv[])
 {
 	int c;
 #ifdef DEBUG
-	while ((c = getopt(argc, argv, "drDhv")) != -1) {
+	while ((c = getopt(argc, argv, "drDhvm:")) != -1) {
 #else
-	while ((c = getopt(argc, argv, "drhv")) != -1) {
+	while ((c = getopt(argc, argv, "drhvm:")) != -1) {
 #endif
 		switch (c) {
 		case 'd':
@@ -198,6 +200,13 @@ parse_args(struct cg_server *server, int argc, char *argv[])
 		case 'h':
 			usage(stdout, argv[0]);
 			return false;
+		case 'm':
+			if(configure_modifier_key(optarg)) {
+				fprintf(stderr, "Incorrect modifier key specified (no such specifier: %s\n).",
+						optarg);
+				return false;
+			}
+			break;
 		case 'v':
 			fprintf(stdout, "Cage version " CAGE_VERSION "\n");
 			exit(0);

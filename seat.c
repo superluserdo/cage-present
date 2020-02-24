@@ -12,6 +12,7 @@
 #include <linux/input-event-codes.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <strings.h>
 #include <sys/wait.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
@@ -38,6 +39,33 @@
 #include "present.h"
 
 static void drag_icon_update_position(struct cg_drag_icon *drag_icon);
+
+static enum wlr_keyboard_modifier modifier_key = WLR_MODIFIER_ALT;
+
+int
+configure_modifier_key(const char *mod_str)
+{
+		
+	if (strcasecmp(mod_str, "alt") == 0) {
+		modifier_key = WLR_MODIFIER_ALT;
+	} else if (strcasecmp(mod_str, "shift") == 0) {
+		modifier_key = WLR_MODIFIER_SHIFT;
+	} else if (strcasecmp(mod_str, "ctrl") == 0) {
+		modifier_key = WLR_MODIFIER_CTRL;
+	} else if (strcasecmp(mod_str, "mod2") == 0) {
+		modifier_key = WLR_MODIFIER_MOD2;
+	} else if (strcasecmp(mod_str, "mod3") == 0) {
+		modifier_key = WLR_MODIFIER_MOD3;
+	} else if (strcasecmp(mod_str, "mod5") == 0) {
+		modifier_key = WLR_MODIFIER_MOD5;
+	} else if (strcasecmp(mod_str, "logo") == 0) {
+		modifier_key = WLR_MODIFIER_LOGO;
+	} else {
+		return 1;
+	}
+
+	return 0;
+}
 
 /* XDG toplevels may have nested surfaces, such as popup windows for context
  * menus or tooltips. This function tests if any of those are underneath the
@@ -264,7 +292,7 @@ handle_key_event(struct wlr_input_device *device, struct cg_seat *seat, void *da
 
 	bool handled = false;
 	uint32_t modifiers = wlr_keyboard_get_modifiers(device->keyboard);
-	if ((modifiers & WLR_MODIFIER_ALT) && event->state == WLR_KEY_PRESSED) {
+	if ((modifiers & modifier_key) && event->state == WLR_KEY_PRESSED) {
 		/* If Alt is held down and this button was pressed, we
 		 * attempt to process it as a compositor
 		 * keybinding. */

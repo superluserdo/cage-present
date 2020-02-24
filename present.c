@@ -10,8 +10,6 @@
 
 bool spawn_client(struct wl_display *display, char *const argv[], pid_t *pid_out);
 
-//---------------------
-
 static size_t n_commands = 0;
 static char **cmds = NULL;
 
