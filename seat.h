@@ -88,5 +88,6 @@ struct cg_seat *seat_create(struct cg_server *server, struct wlr_backend *backen
 void seat_destroy(struct cg_seat *seat);
 struct cg_view *seat_get_focus(struct cg_seat *seat);
 void seat_set_focus(struct cg_seat *seat, struct cg_view *view);
+int configure_modifier_key(const char *mod_str);
 
 #endif

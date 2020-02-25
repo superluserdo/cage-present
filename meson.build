@@ -1,4 +1,4 @@
-project('cage', 'c',
+project('cage-present', 'c',
   version: '0.1.1',
   license: 'MIT',
   default_options: [

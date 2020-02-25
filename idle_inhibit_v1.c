@@ -25,7 +25,7 @@ static void
 idle_inhibit_v1_check_active(struct cg_server *server)
 {
 	/* Due to Cage's unique window management, we don't need to
-	   check for visibility. In the worst cage, the inhibitor is
+	   check for visibility. In the worst case, the inhibitor is
 	   spawned by a dialog that _may_ be obscured by another
 	   dialog, but this is really an edge case that, until
 	   reported, does not warrant the additional complexity.
