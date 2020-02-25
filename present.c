@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <wlr/util/log.h>
 
@@ -13,6 +14,21 @@ bool spawn_client(struct cg_server *server, char *const argv[], pid_t *pid_out,
 
 static size_t n_commands = 0;
 static char **cmds = NULL;
+static char default_shell[] = "/bin/sh";
+static char *custom_shell = NULL;
+
+int
+configure_shell(char *path_str)
+{
+	custom_shell = path_str;
+	struct stat sb;
+	/* Check that file exists and is executable */
+	if (stat(path_str, &sb) == 0 && sb.st_mode & S_IXUSR) {
+		return 0;
+	} else {
+		return 1;
+	}
+}
 
 void
 present_read_cmds(FILE *cmds_file)
@@ -63,7 +79,7 @@ present_direction_keypress(struct cg_server *server, int n)
 		return;
 	}
 
-	char shell[] = "/bin/sh";
+	char *shell = custom_shell ? custom_shell : default_shell;
 	char *const argv[] = {shell, "-c", cmds[cmds_index], NULL};
 
 	if (!spawn_client(server, argv, &server->active_pid, &sigchld_source)) {

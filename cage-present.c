@@ -186,6 +186,7 @@ usage(FILE *file, const char *cage)
 		"\n"
 		" -d            Do draw client side decorations, when possible (default=false)\n"
 		" -r            Rotate the output 90 degrees clockwise, specify up to three times\n"
+		" -s <path>     Use a custom (path to) shell to execute commands (default: /bin/sh)\n"
 #ifdef DEBUG
 		" -D            Turn on damage tracking debugging\n"
 #endif
@@ -203,9 +204,9 @@ parse_args(struct cg_server *server, int argc, char *argv[])
 {
 	int c;
 #ifdef DEBUG
-	while ((c = getopt(argc, argv, "drDhvm:")) != -1) {
+	while ((c = getopt(argc, argv, "drDhvm:s:")) != -1) {
 #else
-	while ((c = getopt(argc, argv, "drhvm:")) != -1) {
+	while ((c = getopt(argc, argv, "drhvm:s:")) != -1) {
 #endif
 		switch (c) {
 		case 'd':
@@ -232,6 +233,14 @@ parse_args(struct cg_server *server, int argc, char *argv[])
 				return false;
 			}
 			break;
+		case 's':
+			if (configure_shell(optarg)) {
+				fprintf(stderr, "%s: Path to shell either doesn't exist or is not executable\n",
+						optarg);
+				return false;
+			}
+			break;
+
 		case 'v':
 			fprintf(stdout, "Cage version " CAGE_VERSION "\n");
 			exit(0);
