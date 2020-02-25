@@ -22,7 +22,6 @@ if get_option('buildtype').startswith('debug')
 endif
 
 cc = meson.get_compiler('c')
-#cc = clang
 
 is_freebsd = host_machine.system().startswith('freebsd')
 if is_freebsd
