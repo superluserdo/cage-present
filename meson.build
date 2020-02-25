@@ -94,7 +94,7 @@ conf_data.set10('CAGE_HAS_XWAYLAND', have_xwayland)
 conf_data.set_quoted('CAGE_VERSION', version)
 
 cage_sources = [
-  'cage.c',
+  'cage-present.c',
   'idle_inhibit_v1.c',
   'output.c',
   'render.c',

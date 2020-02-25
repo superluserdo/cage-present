@@ -51,6 +51,27 @@
 #endif
 #include "present.h"
 
+static int
+sigchld_handler(int fd, uint32_t mask, void *data)
+{
+	struct cg_server *server = data;
+
+	/* Close Cage's read pipe. */
+	close(fd);
+
+	if (mask & WL_EVENT_HANGUP) {
+		wlr_log(WLR_DEBUG, "Child process closed normally");
+	} else if (mask & WL_EVENT_ERROR) {
+		wlr_log(WLR_DEBUG, "Connection closed by server");
+	}
+
+	/* Advance the command list by 1 (which will terminate
+	 * the compositor if it goes past the end) */
+	present_direction_keypress(server, 1);
+	
+	return 0;
+}
+
 static bool
 set_cloexec(int fd)
 {
@@ -71,7 +92,7 @@ set_cloexec(int fd)
 }
 
 bool
-spawn_client(struct wl_display *display, char *const argv[], pid_t *pid_out)
+spawn_client(struct cg_server *server, char *const argv[], pid_t *pid_out, struct wl_event_source **sigchld_source)
 {
 	int fd[2];
 	if (pipe(fd) != 0) {
@@ -103,6 +124,10 @@ spawn_client(struct wl_display *display, char *const argv[], pid_t *pid_out)
 
 	/* Close write, we only need read in Cage. */
 	close(fd[1]);
+
+	struct wl_event_loop *event_loop = wl_display_get_event_loop(server->wl_display);
+	uint32_t mask = WL_EVENT_HANGUP | WL_EVENT_ERROR;
+	*sigchld_source = wl_event_loop_add_fd(event_loop, fd[0], mask, sigchld_handler, server);
 
 	wlr_log(WLR_DEBUG, "Child process created with pid %d", pid);
 
@@ -139,14 +164,14 @@ handle_signal(int signal, void *data)
 {
 	struct cg_server *server = data;
 	struct wl_display *display = server->wl_display;
-	wlr_log(WLR_DEBUG, "Interrupt signal caught, exiting...");
-	wl_display_terminate(display);
-	wlr_idle_notify_activity(server->idle, server->seat->seat);
 
 	switch (signal) {
 	case SIGINT:
 		/* Fallthrough */
 	case SIGTERM:
+		wlr_log(WLR_DEBUG, "Interrupt signal caught, exiting...");
+		wl_display_terminate(display);
+		wlr_idle_notify_activity(server->idle, server->seat->seat);
 		return 0;
 	default:
 		return 0;

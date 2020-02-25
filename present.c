@@ -8,7 +8,8 @@
 
 #include "server.h"
 
-bool spawn_client(struct wl_display *display, char *const argv[], pid_t *pid_out);
+bool spawn_client(struct cg_server *server, char *const argv[], pid_t *pid_out,
+		struct wl_event_source **sigchld_source); // cage-present.c
 
 static size_t n_commands = 0;
 static char **cmds = NULL;
@@ -16,8 +17,6 @@ static char **cmds = NULL;
 void
 present_read_cmds(FILE *cmds_file)
 {
-
-
 	wlr_log(WLR_DEBUG, "Reading commands from file\n");
 	size_t len = 0;
 	ssize_t nread;
@@ -46,6 +45,13 @@ present_read_cmds(FILE *cmds_file)
 void
 present_direction_keypress(struct cg_server *server, int n)
 {
+	static struct wl_event_source *sigchld_source = NULL;
+
+	if (sigchld_source) {
+		wlr_log(WLR_DEBUG, "Removing previous application event source\n");
+		wl_event_source_remove(sigchld_source);
+	}
+	
 	static int cmds_index = 0;
 	cmds_index += n;
 	cmds_index = (cmds_index < 0) ? 0 : cmds_index;
@@ -60,10 +66,9 @@ present_direction_keypress(struct cg_server *server, int n)
 	char shell[] = "/bin/sh";
 	char *const argv[] = {shell, "-c", cmds[cmds_index], NULL};
 
-	if (!spawn_client(server->wl_display, argv, &server->active_pid)) {
+	if (!spawn_client(server, argv, &server->active_pid, &sigchld_source)) {
 		fprintf(stderr, "Couldn't spawn client\n");
 		abort();
 	}
 
 }
-//---------------------
